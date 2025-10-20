@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace GT.RText
@@ -15,6 +17,12 @@ namespace GT.RText
         public RowEditor()
         {
             InitializeComponent();
+            
+            // Aplicar tema escuro
+            DarkTheme.ApplyDarkTheme(this);
+            
+            // Carregar ícone se existir
+            LoadIcon();
         }
 
         public RowEditor(bool isWithoutId, bool isUiProject)
@@ -26,6 +34,12 @@ namespace GT.RText
             _isUiProject = isUiProject;
             if (isUiProject)
                 applyAllLocalesCheckBox.Visible = true;
+                
+            // Aplicar tema escuro
+            DarkTheme.ApplyDarkTheme(this);
+            
+            // Carregar ícone se existir
+            LoadIcon();
         }
 
         public RowEditor(int id, string label, string data, bool isUiProject)
@@ -44,6 +58,28 @@ namespace GT.RText
             richTextBox_data.Text = data;
 
             HandleId(id);
+            
+            // Aplicar tema escuro
+            DarkTheme.ApplyDarkTheme(this);
+            
+            // Carregar ícone se existir
+            LoadIcon();
+        }
+        
+        private void LoadIcon()
+        {
+            try
+            {
+                string iconPath = Path.Combine(Application.StartupPath, "app.ico");
+                if (File.Exists(iconPath))
+                {
+                    this.Icon = new Icon(iconPath);
+                }
+            }
+            catch
+            {
+                // Ignorar se não conseguir carregar o ícone
+            }
         }
 
         private void HandleId(int id)

@@ -1,21 +1,43 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 // Required for the non crappy folder picker 
 // https://stackoverflow.com/q/11624298
-using Microsoft.WindowsAPICodePack.Dialogs;
+// using Microsoft.WindowsAPICodePack.Dialogs;
 
 using GT.RText.Core;
 using GT.RText.Core.Exceptions;
 using GT.Shared.Logging;
+using GT.Shared;
 using System.Linq;
 
 namespace GT.RText
 {
     public partial class Main : Form
     {
+        // Windows API declarations for dark title bar
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmExtendFrameIntoClientArea(IntPtr hWnd, ref MARGINS pMarInset);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MARGINS
+        {
+            public int leftWidth;
+            public int rightWidth;
+            public int topHeight;
+            public int bottomHeight;
+        }
+
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
         /// <summary>
         /// Designates whether the currently loaded content is a project folder.
         /// </summary>
@@ -33,6 +55,7 @@ namespace GT.RText
         private List<RTextParser> _rTexts;
 
         private ListViewColumnSorter _columnSorter;
+        private ContextMenuStrip _categoriesContextMenu;
 
         public RTextParser CurrentRText => _rTexts[tabControlLocalFiles.SelectedIndex];
         public RTextPageBase CurrentPage { get; set; }
@@ -47,6 +70,54 @@ namespace GT.RText
             _columnSorter = new ListViewColumnSorter();
             this.listViewEntries.ListViewItemSorter = _columnSorter;
             this.listViewEntries.Sorting = SortOrder.Ascending;
+            
+            InitializeExcelImportFeature();
+            
+            // Apply dark theme
+            DarkTheme.ApplyDarkTheme(this);
+            
+            // Apply dark title bar
+            this.Load += (s, e) => ApplyDarkTitleBar();
+            
+            // Load icon if exists
+            try
+            {
+                string iconPath = Path.Combine(Application.StartupPath, "app.ico");
+                if (File.Exists(iconPath))
+                {
+                    this.Icon = new Icon(iconPath);
+                }
+            }
+            catch
+            {
+                // Ignore if unable to load the icon
+            }
+        }
+
+        /// <summary>
+        /// Applies dark title bar using Windows API
+        /// </summary>
+        private void ApplyDarkTitleBar()
+        {
+            try
+            {
+                if (this.Handle != IntPtr.Zero)
+                {
+                    int value = 1;
+                    // Try first the newest API version
+                    int result = DwmSetWindowAttribute(this.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int));
+                    
+                    // If it fails, try the older version
+                    if (result != 0)
+                    {
+                        DwmSetWindowAttribute(this.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ref value, sizeof(int));
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore if API is not available
+            }
         }
 
         #region Events
@@ -71,13 +142,11 @@ namespace GT.RText
 
         private void openFolderToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            var dialog = new CommonOpenFileDialog();
-            dialog.EnsureFileExists = true;
-            dialog.EnsurePathExists = true;
+            var dialog = new FolderBrowserDialog();
+            dialog.Description = "Selecione a pasta com os arquivos RT";
+            dialog.ShowNewFolderButton = false;
 
-            dialog.IsFolderPicker = true;
-
-            if (dialog.ShowDialog() != CommonFileDialogResult.Ok) return;
+            if (dialog.ShowDialog() != DialogResult.OK) return;
 
             _rTexts.Clear();
 
@@ -87,7 +156,7 @@ namespace GT.RText
             ClearTabs();
 
             bool firstTab = true;
-            string[] files = Directory.GetFiles(dialog.FileName, "*", SearchOption.TopDirectoryOnly);
+            string[] files = Directory.GetFiles(dialog.SelectedPath, "*", SearchOption.TopDirectoryOnly);
 
             if (files.Any(f => RTextParser.Locales.ContainsKey(Path.GetFileNameWithoutExtension(f))))
             {
@@ -118,7 +187,7 @@ namespace GT.RText
             else
             {
                 // Locale files are located per-UI project, in their own folder (i.e arcade/US/rtext.rt2)
-                string[] folders = Directory.GetDirectories(dialog.FileName, "*", SearchOption.TopDirectoryOnly);
+                string[] folders = Directory.GetDirectories(dialog.SelectedPath, "*", SearchOption.TopDirectoryOnly);
                 foreach (var folder in folders)
                 {
                     string actualDirName = Path.GetFileName(folder);
@@ -152,24 +221,22 @@ namespace GT.RText
             {
                 if (_isUiFolderProject)
                 {
-                    var dialog = new CommonOpenFileDialog();
-                    dialog.EnsureFileExists = true;
-                    dialog.EnsurePathExists = true;
+                    var dialog = new FolderBrowserDialog();
+                    dialog.Description = "Selecione a pasta para salvar os arquivos";
+                    dialog.ShowNewFolderButton = true;
 
-                    dialog.IsFolderPicker = true;
-
-                    if (dialog.ShowDialog() != CommonFileDialogResult.Ok) return;
+                    if (dialog.ShowDialog() != DialogResult.OK) return;
 
                     foreach (var rtext in _rTexts)
                     {
                         if (_isGT6AndAboveProjectStyle)
                         {
-                            string localePath = Path.Combine(dialog.FileName, $"{rtext.LocaleCode}.rt2");
+                            string localePath = Path.Combine(dialog.SelectedPath, $"{rtext.LocaleCode}.rt2");
                             rtext.RText.Save(localePath);
                         }
                         else
                         {
-                            string localePath = Path.Combine(dialog.FileName, rtext.LocaleCode);
+                            string localePath = Path.Combine(dialog.SelectedPath, rtext.LocaleCode);
                             Directory.CreateDirectory(localePath);
 
                             rtext.RText.Save(Path.Combine(localePath, "rtext.rt2"));
@@ -485,6 +552,19 @@ namespace GT.RText
             
             DisplayEntries(CurrentPage);
         }
+
+        private void importExcelToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!_rTexts.Any() || CurrentRText is null || CurrentPage is null)
+            {
+                MessageBox.Show("No file loaded or category selected.", "Warning", 
+                              MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            ImportExcelForCategory_Click(sender, e);
+        }
+
         #endregion
 
         private void ClearTabs()
@@ -618,5 +698,311 @@ namespace GT.RText
             // Perform the sort with these new sort options.
             this.listViewEntries.Sort();
         }
+
+        #region Excel Import Feature
+
+        private void InitializeExcelImportFeature()
+        {
+            // Criar menu de contexto para as categorias
+            _categoriesContextMenu = new ContextMenuStrip();
+            
+            var importCsvItem = new ToolStripMenuItem("Import CSV to this category");
+            importCsvItem.Click += ImportExcelForCategory_Click;
+            importCsvItem.Image = null; // Pode adicionar um ícone se desejar
+            
+            var exportCsvItem = new ToolStripMenuItem("Export this category to CSV");
+            exportCsvItem.Click += ExportCategoryToCsv_Click;
+            exportCsvItem.Image = null; // Pode adicionar um ícone se desejar
+            
+            var createSampleItem = new ToolStripMenuItem("Create a CSV in the correct format");
+            createSampleItem.Click += CreateSampleCsv_Click;
+            
+            _categoriesContextMenu.Items.Add(importCsvItem);
+            _categoriesContextMenu.Items.Add(exportCsvItem);
+            _categoriesContextMenu.Items.Add(new ToolStripSeparator());
+            _categoriesContextMenu.Items.Add(createSampleItem);
+            
+            // Associar o menu de contexto ao ListView de páginas/categorias
+            listViewPages.ContextMenuStrip = _categoriesContextMenu;
+        }
+
+        private void CreateSampleCsv_Click(object sender, EventArgs e)
+        {
+            var saveFileDialog = new SaveFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv",
+                Title = "Save sample CSV file",
+                FileName = "sample_import.csv"
+            };
+
+            if (saveFileDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                try
+                {
+                    ExcelImporter.CreateSampleCsv(saveFileDialog.FileName);
+                    MessageBox.Show($"Sample file created successfully!\n\nLocation: {saveFileDialog.FileName}\n\n" +
+                                  "You can edit this file and use it to import data.", 
+                                  "File created", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    toolStripStatusLabel.Text = "Sample CSV file created successfully";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error creating sample file: {ex.Message}", "Error", 
+                                  MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void ImportExcelForCategory_Click(object sender, EventArgs e)
+        {
+            // Verificar se há uma categoria selecionada
+            if (listViewPages.SelectedItems.Count <= 0 || listViewPages.SelectedItems[0] == null)
+            {
+                MessageBox.Show("Please select a category first.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var selectedItem = listViewPages.SelectedItems[0];
+            var page = (RTextPageBase)selectedItem.Tag;
+            var categoryName = page.Name;
+
+            var openFileDialog = new OpenFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = "Select CSV file for import",
+                CheckFileExists = true,
+                CheckPathExists = true
+            };
+
+            if (openFileDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                ImportCsvData(openFileDialog.FileName, page, categoryName);
+            }
+        }
+
+        private void ImportCsvData(string filePath, RTextPageBase page, string categoryName)
+        {
+            try
+            {
+                // Mostrar cursor de espera
+                this.Cursor = Cursors.WaitCursor;
+                toolStripStatusLabel.Text = "Importing CSV data...";
+
+                var importResult = ExcelImporter.ImportFromCsv(filePath);
+
+                if (!importResult.Success)
+                {
+                    MessageBox.Show($"Import error: {importResult.Message}", "Error", 
+                                  MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Mostrar prévia e confirmar importação
+                var previewMessage = $"File: {Path.GetFileName(filePath)}\n" +
+                                   $"Category: {categoryName}\n" +
+                                   $"Records found: {importResult.ImportedEntries.Count}\n\n" +
+                                   "First records:\n";
+
+                // Mostrar os primeiros 5 registros como prévia
+                var preview = importResult.ImportedEntries.Take(5);
+                foreach (var entry in preview)
+                {
+                    var truncatedString = entry.String.Length > 50 ? entry.String.Substring(0, 50) + "..." : entry.String;
+                    previewMessage += $"• {entry.RecNo} | {entry.Label} | {truncatedString}\n";
+                }
+
+                if (importResult.ImportedEntries.Count > 5)
+                {
+                    previewMessage += $"... and {importResult.ImportedEntries.Count - 5} more records.\n";
+                }
+
+                previewMessage += "\nThis operation will:\n" +
+                                "• Replace existing texts with same Label\n" +
+                                "• Add new records if Label doesn't exist\n" +
+                                "• Keep existing records not in the file\n\n" +
+                                "Do you want to continue with the import?";
+
+                var confirmResult = MessageBox.Show(previewMessage, "Confirm Import", 
+                                                  MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (confirmResult == DialogResult.Yes)
+                {
+                    ApplyImportedData(importResult.ImportedEntries, page, categoryName);
+                    
+                    MessageBox.Show($"Import completed successfully!\n\n{importResult.Message}", 
+                                  "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // Atualizar a interface
+                    DisplayEntries(page);
+                    toolStripStatusLabel.Text = $"Import completed: {importResult.ImportedEntries.Count} records processed";
+                }
+                else
+                {
+                    toolStripStatusLabel.Text = "Import cancelled by user";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error during import: {ex.Message}", "Error", 
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                toolStripStatusLabel.Text = "Error during import";
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        private void ApplyImportedData(List<ImportedEntry> entries, RTextPageBase page, string categoryName)
+        {
+            int updatedCount = 0;
+            int addedCount = 0;
+
+            foreach (var entry in entries)
+            {
+                if (_isUiFolderProject)
+                {
+                    // Apply to all locales if it's a folder project
+                    foreach (var rt in _rTexts)
+                    {
+                        try
+                        {
+                            var rtPage = rt.RText.GetPages()[categoryName];
+                            if (rtPage.PairExists(entry.Label))
+                            {
+                                // For existing records, preserve original ID and only update the value
+                                var existingPair = rtPage.PairUnits[entry.Label];
+                                rtPage.EditRow(existingPair.ID, entry.Label, entry.String);
+                                updatedCount++;
+                            }
+                            else
+                            {
+                                // For new records, use a unique ID based on last ID + 1
+                                int newId = rtPage.PairUnits.Count > 0 ? rtPage.GetLastId() + 1 : 1;
+                                rtPage.AddRow(newId, entry.Label, entry.String);
+                                addedCount++;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error applying data to locale {rt.LocaleCode}: {ex.Message}");
+                        }
+                    }
+                }
+                else
+                {
+                    // Apply only to current file
+                    if (page.PairExists(entry.Label))
+                    {
+                        // For existing records, preserve original ID and only update the value
+                        var existingPair = page.PairUnits[entry.Label];
+                        page.EditRow(existingPair.ID, entry.Label, entry.String);
+                        updatedCount++;
+                    }
+                    else
+                    {
+                        // For new records, use a unique ID based on last ID + 1
+                        int newId = page.PairUnits.Count > 0 ? page.GetLastId() + 1 : 1;
+                        page.AddRow(newId, entry.Label, entry.String);
+                        addedCount++;
+                    }
+                }
+            }
+
+            var summary = "";
+            if (_isUiFolderProject)
+            {
+                summary = $"Aplicado para {_rTexts.Count} locales: ";
+            }
+            
+            summary += $"{updatedCount} registros atualizados, {addedCount} registros adicionados";
+            
+            Console.WriteLine($"Importação completada: {summary}");
+        }
+
+        private void ExportCategoryToCsv_Click(object sender, EventArgs e)
+        {
+            // Verificar se há uma categoria selecionada
+            if (listViewPages.SelectedItems.Count <= 0 || listViewPages.SelectedItems[0] == null)
+            {
+                MessageBox.Show("Please select a category first.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var selectedItem = listViewPages.SelectedItems[0];
+            var page = (RTextPageBase)selectedItem.Tag;
+            var categoryName = page.Name;
+
+            var saveFileDialog = new SaveFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = "Export category to CSV",
+                FileName = $"{categoryName}_export.csv",
+                CheckPathExists = true
+            };
+
+            if (saveFileDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                ExportCategoryData(saveFileDialog.FileName, page, categoryName);
+            }
+        }
+
+        private void ExportCategoryData(string filePath, RTextPageBase page, string categoryName)
+        {
+            try
+            {
+                // Mostrar cursor de espera
+                this.Cursor = Cursors.WaitCursor;
+                toolStripStatusLabel.Text = "Exporting category data...";
+
+                // Converter os dados da página para o formato de exportação
+                var exportEntries = new List<ImportedEntry>();
+
+                foreach (var pair in page.PairUnits.Values.OrderBy(p => p.ID))
+                {
+                    exportEntries.Add(new ImportedEntry
+                    {
+                        RecNo = pair.ID,
+                        Label = pair.Label,
+                        String = pair.Value
+                    });
+                }
+
+                // Exportar para CSV
+                bool success = ExcelImporter.ExportToCsv(filePath, exportEntries);
+
+                if (success)
+                {
+                    var successMessage = $"Category '{categoryName}' exported successfully!\n\n" +
+                                       $"File: {Path.GetFileName(filePath)}\n" +
+                                       $"Records exported: {exportEntries.Count}\n" +
+                                       $"Format: RecNo,Label,String";
+
+                    MessageBox.Show(successMessage, "Export Successful", 
+                                  MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    toolStripStatusLabel.Text = $"Export completed: {exportEntries.Count} records exported to {Path.GetFileName(filePath)}";
+                }
+                else
+                {
+                    MessageBox.Show("Failed to export category data. Please check the file path and try again.", 
+                                  "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    toolStripStatusLabel.Text = "Export failed";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error during export: {ex.Message}", "Error", 
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                toolStripStatusLabel.Text = "Error during export";
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        #endregion
     }
 }

@@ -34,6 +34,7 @@
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.addEditFromCSVFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importExcelToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuStrip = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -116,7 +117,8 @@
             // editToolStripMenuItem1
             // 
             this.editToolStripMenuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.addEditFromCSVFileToolStripMenuItem});
+            this.addEditFromCSVFileToolStripMenuItem,
+            this.importExcelToolStripMenuItem});
             this.editToolStripMenuItem1.Name = "editToolStripMenuItem1";
             this.editToolStripMenuItem1.Size = new System.Drawing.Size(39, 20);
             this.editToolStripMenuItem1.Text = "Edit";
@@ -127,6 +129,13 @@
             this.addEditFromCSVFileToolStripMenuItem.Size = new System.Drawing.Size(353, 22);
             this.addEditFromCSVFileToolStripMenuItem.Text = "Add/Edit Current Category from CSV File (Key, Value)";
             this.addEditFromCSVFileToolStripMenuItem.Click += new System.EventHandler(this.addEditFromCSVFileToolStripMenuItem_Click);
+            // 
+            // importExcelToolStripMenuItem
+            // 
+            this.importExcelToolStripMenuItem.Name = "importExcelToolStripMenuItem";
+            this.importExcelToolStripMenuItem.Size = new System.Drawing.Size(353, 22);
+            this.importExcelToolStripMenuItem.Text = "Import CSV for Current Category (RecNo, Label, String)";
+            this.importExcelToolStripMenuItem.Click += new System.EventHandler(this.importExcelToolStripMenuItem_Click);
             // 
             // contextMenuStrip
             // 
@@ -239,7 +248,7 @@
             this.Controls.Add(this.menuStrip);
             this.MainMenuStrip = this.menuStrip;
             this.Name = "Main";
-            this.Text = "RT2 Editor by xfileFIN";
+            this.Text = "GT.R Text Editor (Modified by Derek W 🏴‍☠️)";
             this.SizeChanged += new System.EventHandler(this.Main_SizeChanged);
             this.menuStrip.ResumeLayout(false);
             this.menuStrip.PerformLayout();
@@ -274,6 +283,7 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
         private System.Windows.Forms.ToolStripMenuItem editToolStripMenuItem1;
         private System.Windows.Forms.ToolStripMenuItem addEditFromCSVFileToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem importExcelToolStripMenuItem;
         private System.Windows.Forms.OpenFileDialog csvOpenFileDialog;
     }
 }
