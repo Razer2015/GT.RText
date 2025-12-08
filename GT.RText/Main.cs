@@ -6,11 +6,14 @@ using System.Windows.Forms;
 // Required for the non crappy folder picker 
 // https://stackoverflow.com/q/11624298
 using Microsoft.WindowsAPICodePack.Dialogs;
+using CsvHelper;
+using System.Globalization;
 
 using GT.RText.Core;
 using GT.RText.Core.Exceptions;
 using GT.Shared.Logging;
 using System.Linq;
+using System.Text;
 
 namespace GT.RText
 {
@@ -34,7 +37,18 @@ namespace GT.RText
 
         private ListViewColumnSorter _columnSorter;
 
-        public RTextParser CurrentRText => _rTexts[tabControlLocalFiles.SelectedIndex];
+        public RTextParser CurrentRText
+        {
+            get
+            {
+                int index = tabControlLocalFiles.SelectedIndex;
+
+                if (index < 0 || index >= _rTexts.Count)
+                    return null; // or throw or handle gracefully
+
+                return _rTexts[index];
+            }
+        }
         public RTextPageBase CurrentPage { get; set; }
 
         public Main()
@@ -414,76 +428,166 @@ namespace GT.RText
             DisplayPages();
         }
 
+		private void exportCSVToolStripMenuItem_Click(object sender, EventArgs e)
+		{
+			if (CurrentRText is null || CurrentPage is null)
+			{
+				MessageBox.Show("No category selected to export.", "Error",
+					MessageBoxButtons.OK, MessageBoxIcon.Warning);
+				return;
+			}
+
+			using (SaveFileDialog sfd = new SaveFileDialog())
+			{
+				sfd.Filter = "CSV File (*.csv)|*.csv";
+				sfd.Title = "Export Category to CSV";
+				sfd.FileName = $"{SanitizeFileName(CurrentPage.Name)}.csv";
+
+				if (sfd.ShowDialog() != DialogResult.OK)
+					return;
+
+				try
+				{
+					using (var writer = new StreamWriter(sfd.FileName, false, new System.Text.UTF8Encoding(true)))
+					using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+					{
+                        // Write header
+                        foreach (ColumnHeader column in listViewEntries.Columns)
+                        {
+                            csv.WriteField(column.Text);
+                        }
+                        csv.NextRecord();
+
+                        // Write rows
+                        foreach (ListViewItem item in listViewEntries.Items)
+                        {
+                            foreach (ListViewItem.ListViewSubItem subItem in item.SubItems)
+                            {
+                                csv.WriteField(subItem.Text);
+                            }
+                            csv.NextRecord();
+                        }
+					}
+
+					toolStripStatusLabel.Text = $"CSV exported: {sfd.FileName}";
+				}
+				catch (Exception ex)
+				{
+					toolStripStatusLabel.Text = $"Error exporting CSV: {ex.Message}";
+					MessageBox.Show($"Failed to export CSV:\n{ex.Message}", "Error",
+						MessageBoxButtons.OK, MessageBoxIcon.Error);
+				}
+			}
+		}
+
         private void addEditFromCSVFileToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (!_rTexts.Any() || CurrentRText is null || CurrentPage is null) return;
+            if (!_rTexts.Any() || CurrentRText is null || CurrentPage is null)
+                return;
 
-            if (csvOpenFileDialog.ShowDialog(this) != DialogResult.OK) return;
+            if (csvOpenFileDialog.ShowDialog(this) != DialogResult.OK)
+                return;
 
-            Dictionary<string, string> kv = new Dictionary<string, string>();
             try
             {
-                using (var file = File.OpenText(csvOpenFileDialog.FileName))
+                bool isRT03 = CurrentRText.RText is RT03;
+                var records = new List<dynamic>();
+
+                using (var reader = new StreamReader(csvOpenFileDialog.FileName, true))
+                using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
                 {
-                    while (!file.EndOfStream)
+                    csv.Read();
+                    csv.ReadHeader();
+
+                    while (csv.Read())
                     {
-                        string line = file.ReadLine();
-                        if (string.IsNullOrEmpty(line))
-                            continue;
-
-                        string[] spl = line.Split(',');
-                        if (spl.Length != 2)
-                            continue;
-
-                        string key = spl[0];
-                        string value = spl[1];
-
-                        if (!kv.TryGetValue(key, out _))
-                            kv.Add(key, value);
+                        if (isRT03)
+                        {
+                            records.Add(new
+                            {
+                                RecNo = csv.GetField(0),
+                                Label = csv.GetField(1),
+                                Value = csv.GetField(2)
+                            });
+                        }
+                        else
+                        {
+                            records.Add(new
+                            {
+                                RecNo = csv.GetField(0),
+                                Id = csv.GetField(1),
+                                Label = csv.GetField(2),
+                                Value = csv.GetField(3)
+                            });
+                        }
                     }
                 }
+
+                if (!records.Any())
+                {
+                    MessageBox.Show("No valid rows found in CSV.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                bool applyToAll = false;
+                if (_isUiFolderProject)
+                {
+                    var res = MessageBox.Show("Apply changes to all opened locales?", "Confirmation",
+                        MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+
+                    if (res == DialogResult.Cancel)
+                        return;
+
+                    applyToAll = (res == DialogResult.Yes);
+                }
+
+                void ApplyToPage(RTextPageBase page)
+                {
+                    foreach (var rec in records)
+                    {
+                        string label = rec.Label;
+                        string value = rec.Value;
+                        int? id = null;
+                        if (!isRT03)
+                        {
+                            if (int.TryParse(rec.Id, out int parsedId))
+                                id = parsedId;
+                        }
+
+                        if (page.PairExists(label))
+                            page.DeleteRow(label);
+
+                        if (!isRT03 && id != null)
+                            page.AddRow(id.Value, label, value);
+                        else
+                            page.AddRow(page.GetLastId() + 1, label, value);
+                    }
+                }
+
+                if (applyToAll)
+                {
+                    foreach (var rtext in _rTexts)
+                    {
+                        if (rtext.RText.GetPages().TryGetValue(CurrentPage.Name, out var page))
+                            ApplyToPage(page);
+                    }
+
+                    toolStripStatusLabel.Text =
+                        $"Added/Edited {records.Count} entries for {_rTexts.Count} locales.";
+                }
+                else
+                {
+                    ApplyToPage(CurrentPage);
+                    toolStripStatusLabel.Text = $"Added/Edited {records.Count} entries.";
+                }
+
+                DisplayEntries(CurrentPage);
             }
             catch (Exception ex)
             {
-                toolStripStatusLabel.Text = $"Unable to read CSV file: {ex.Message}";
-                return;
+                MessageBox.Show($"Failed to import CSV:\n{ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
-            if (!kv.Any())
-            {
-                toolStripStatusLabel.Text = "Error: No valid key/value pairs found in CSV file.";
-                return;
-            }
-
-            if (_isUiFolderProject)
-            {
-                var res = MessageBox.Show($"Add to all opened locales?", "Confirmation", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
-                if (res == DialogResult.Yes)
-                {
-
-                    foreach (var rtext in _rTexts)
-                    {
-                        if (rtext.RText.GetPages().TryGetValue(CurrentPage.Name, out var localePage))
-                            localePage.AddPairs(kv);
-                    }
-                    toolStripStatusLabel.Text = $"Added/Edited {kv.Count} entries for {_rTexts.Count} locales.";
-                }
-                else if (res == DialogResult.No)
-                {
-                    CurrentPage.AddPairs(kv);
-                    toolStripStatusLabel.Text = $"Added/Edited {kv.Count} entries.";
-                }
-                else
-                    return;
-            }
-            else
-            {
-                CurrentPage.AddPairs(kv);
-                toolStripStatusLabel.Text = $"Added/Edited {kv.Count} entries.";
-            }
-
-            
-            DisplayEntries(CurrentPage);
         }
         #endregion
 
@@ -617,6 +721,55 @@ namespace GT.RText
 
             // Perform the sort with these new sort options.
             this.listViewEntries.Sort();
+        }
+        
+        private string[] ParseCsvLine(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+                return Array.Empty<string>();
+
+            var fields = new List<string>();
+            bool inQuotes = false;
+            var field = new System.Text.StringBuilder();
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (c == '"')
+                {
+                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        field.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = !inQuotes;
+                    }
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    fields.Add(field.ToString());
+                    field.Clear();
+                }
+                else
+                {
+                    field.Append(c);
+                }
+            }
+
+            fields.Add(field.ToString());
+            return fields.ToArray();
+        }
+        
+        private string SanitizeFileName(string name)
+        {
+            foreach (char c in Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(c, '_');
+            }
+            return name;
         }
     }
 }

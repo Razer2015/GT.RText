@@ -22,7 +22,8 @@
         /// Required method for Designer support - do not modify
         /// the contents of this method with the code editor.
         /// </summary>
-        private void InitializeComponent() {
+        private void InitializeComponent()
+        {
             this.components = new System.ComponentModel.Container();
             this.menuStrip = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -34,6 +35,7 @@
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.addEditFromCSVFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportCSVToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuStrip = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -45,32 +47,30 @@
             this.tabControlLocalFiles = new System.Windows.Forms.TabControl();
             this.listViewEntries = new System.Windows.Forms.ListView();
             this.listViewPages = new System.Windows.Forms.ListView();
+            this.contextMenuStrip_pages = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.toolStripMenuItem_import = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItem_exportToCsv = new System.Windows.Forms.ToolStripMenuItem();
             this.csvOpenFileDialog = new System.Windows.Forms.OpenFileDialog();
             this.menuStrip.SuspendLayout();
             this.contextMenuStrip.SuspendLayout();
             this.statusStrip.SuspendLayout();
+            this.contextMenuStrip_pages.SuspendLayout();
             this.SuspendLayout();
             // 
             // menuStrip
             // 
-            this.menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.fileToolStripMenuItem,
-            this.editToolStripMenuItem1});
+            this.menuStrip.ImageScalingSize = new System.Drawing.Size(20, 20);
+            this.menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { this.fileToolStripMenuItem, this.editToolStripMenuItem1 });
             this.menuStrip.Location = new System.Drawing.Point(0, 0);
             this.menuStrip.Name = "menuStrip";
+            this.menuStrip.Padding = new System.Windows.Forms.Padding(4, 2, 0, 2);
             this.menuStrip.Size = new System.Drawing.Size(1228, 24);
             this.menuStrip.TabIndex = 0;
             this.menuStrip.Text = "menuStrip1";
             // 
             // fileToolStripMenuItem
             // 
-            this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.openToolStripMenuItem,
-            this.openFolderToolStripMenuItem,
-            this.toolStripSeparator1,
-            this.saveToolStripMenuItem,
-            this.toolStripSeparator2,
-            this.exitToolStripMenuItem});
+            this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { this.openToolStripMenuItem, this.openFolderToolStripMenuItem, this.toolStripSeparator1, this.saveToolStripMenuItem, this.toolStripSeparator2, this.exitToolStripMenuItem });
             this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             this.fileToolStripMenuItem.Size = new System.Drawing.Size(37, 20);
             this.fileToolStripMenuItem.Text = "File";
@@ -115,8 +115,7 @@
             // 
             // editToolStripMenuItem1
             // 
-            this.editToolStripMenuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.addEditFromCSVFileToolStripMenuItem});
+            this.editToolStripMenuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { this.addEditFromCSVFileToolStripMenuItem, this.exportCSVToolStripMenuItem });
             this.editToolStripMenuItem1.Name = "editToolStripMenuItem1";
             this.editToolStripMenuItem1.Size = new System.Drawing.Size(39, 20);
             this.editToolStripMenuItem1.Text = "Edit";
@@ -128,12 +127,17 @@
             this.addEditFromCSVFileToolStripMenuItem.Text = "Add/Edit Current Category from CSV File (Key, Value)";
             this.addEditFromCSVFileToolStripMenuItem.Click += new System.EventHandler(this.addEditFromCSVFileToolStripMenuItem_Click);
             // 
+            // exportCSVToolStripMenuItem
+            // 
+            this.exportCSVToolStripMenuItem.Name = "exportCSVToolStripMenuItem";
+            this.exportCSVToolStripMenuItem.Size = new System.Drawing.Size(353, 22);
+            this.exportCSVToolStripMenuItem.Text = "Export Current Category to CSV...";
+            this.exportCSVToolStripMenuItem.Click += new System.EventHandler(this.exportCSVToolStripMenuItem_Click);
+            // 
             // contextMenuStrip
             // 
-            this.contextMenuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.editToolStripMenuItem,
-            this.addToolStripMenuItem,
-            this.removeToolStripMenuItem});
+            this.contextMenuStrip.ImageScalingSize = new System.Drawing.Size(20, 20);
+            this.contextMenuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { this.editToolStripMenuItem, this.addToolStripMenuItem, this.removeToolStripMenuItem });
             this.contextMenuStrip.Name = "contextMenuStrip";
             this.contextMenuStrip.Size = new System.Drawing.Size(118, 70);
             // 
@@ -169,8 +173,8 @@
             // 
             // statusStrip
             // 
-            this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripStatusLabel});
+            this.statusStrip.ImageScalingSize = new System.Drawing.Size(20, 20);
+            this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { this.toolStripStatusLabel });
             this.statusStrip.Location = new System.Drawing.Point(0, 428);
             this.statusStrip.Name = "statusStrip";
             this.statusStrip.Size = new System.Drawing.Size(1228, 22);
@@ -212,7 +216,9 @@
             // 
             // listViewPages
             // 
+            this.listViewPages.ContextMenuStrip = this.contextMenuStrip_pages;
             this.listViewPages.Dock = System.Windows.Forms.DockStyle.Left;
+            this.listViewPages.FullRowSelect = true;
             this.listViewPages.HideSelection = false;
             this.listViewPages.Location = new System.Drawing.Point(0, 46);
             this.listViewPages.MultiSelect = false;
@@ -222,6 +228,26 @@
             this.listViewPages.UseCompatibleStateImageBehavior = false;
             this.listViewPages.View = System.Windows.Forms.View.Details;
             this.listViewPages.SelectedIndexChanged += new System.EventHandler(this.listViewCategories_SelectedIndexChanged);
+            // 
+            // contextMenuStrip_pages
+            // 
+            this.contextMenuStrip_pages.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { this.toolStripMenuItem_import, this.toolStripMenuItem_exportToCsv });
+            this.contextMenuStrip_pages.Name = "contextMenuStrip_pages";
+            this.contextMenuStrip_pages.Size = new System.Drawing.Size(164, 48);
+            // 
+            // toolStripMenuItem_import
+            // 
+            this.toolStripMenuItem_import.Name = "toolStripMenuItem_import";
+            this.toolStripMenuItem_import.Size = new System.Drawing.Size(163, 22);
+            this.toolStripMenuItem_import.Text = "Import from CSV";
+            this.toolStripMenuItem_import.Click += new System.EventHandler(this.addEditFromCSVFileToolStripMenuItem_Click);
+            // 
+            // toolStripMenuItem_exportToCsv
+            // 
+            this.toolStripMenuItem_exportToCsv.Name = "toolStripMenuItem_exportToCsv";
+            this.toolStripMenuItem_exportToCsv.Size = new System.Drawing.Size(163, 22);
+            this.toolStripMenuItem_exportToCsv.Text = "Export to CSV";
+            this.toolStripMenuItem_exportToCsv.Click += new System.EventHandler(this.exportCSVToolStripMenuItem_Click);
             // 
             // csvOpenFileDialog
             // 
@@ -246,10 +272,16 @@
             this.contextMenuStrip.ResumeLayout(false);
             this.statusStrip.ResumeLayout(false);
             this.statusStrip.PerformLayout();
+            this.contextMenuStrip_pages.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
-
         }
+
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem_import;
+
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem_exportToCsv;
+
+        private System.Windows.Forms.ContextMenuStrip contextMenuStrip_pages;
 
         #endregion
 
@@ -275,6 +307,7 @@
         private System.Windows.Forms.ToolStripMenuItem editToolStripMenuItem1;
         private System.Windows.Forms.ToolStripMenuItem addEditFromCSVFileToolStripMenuItem;
         private System.Windows.Forms.OpenFileDialog csvOpenFileDialog;
+        private System.Windows.Forms.ToolStripMenuItem exportCSVToolStripMenuItem;
     }
 }
 
